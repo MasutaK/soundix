@@ -1,15 +1,17 @@
 {
   "name": "soundix-bot",
   "version": "1.0.0",
-  "description": "Stoat music bot",
+  "description": "Music bot for Stoat with play, skip, pause, resume, queue, stop, help commands",
   "type": "module",
-  "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "stoat.js": "^7.3.5",
-    "dotenv": "^16.0.0",
+    "dotenv": "^16.0.3",
     "ytdl-core": "^4.11.0",
     "yt-search": "^2.10.0",
     "ffmpeg-static": "^5.2.0"
