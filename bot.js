@@ -11,6 +11,8 @@ client.on("ready", () => {
   console.log(`Bot connected as ${client.user.username}!`);
 });
 
+client.login().catch(err => console.error("Login error:", err));
+
 client.on("messageCreate", async (evt) => {
   const message = evt.message;
   if (!message.content.startsWith(PREFIX)) return;
