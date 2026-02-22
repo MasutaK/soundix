@@ -1,9 +1,9 @@
 import "dotenv/config";
-import { Client } from "stoat.js"; 
+import { Client } from "@stoat/javascript-client-sdk";
 import ytdl from "ytdl-core";
 import ytSearch from "yt-search";
 
-const client = new Stoat.Client(process.env.TOKEN);
+const client = new Client({ token: process.env.TOKEN });
 const PREFIX = "!";
 const queues = new Map();
 
