@@ -3,14 +3,18 @@ import { Client } from "@stoat/javascript-client-sdk";
 import ytdl from "ytdl-core";
 import ytSearch from "yt-search";
 
+// Initialisation du client Stoat
 const client = new Client({ token: process.env.TOKEN });
-const PREFIX = "!";
-const queues = new Map();
 
+const PREFIX = "!";
+const queues = new Map(); // Queue par serveur
+
+// Quand le bot est prêt
 client.on("ready", () => {
-  console.log(`Bot connected as ${client.user.username}!`);
+  console.log(`Bot connecté en tant que ${client.user.username}!`);
 });
 
+// Gestion des messages
 client.on("messageCreate", async (evt) => {
   const message = evt.message;
   if (!message.content.startsWith(PREFIX)) return;
@@ -52,14 +56,6 @@ client.on("messageCreate", async (evt) => {
       queue.skipNext = true;
       await client.sendMessage(message.channelId, "⏭️ Skipped song");
 
-    } else if (command === "pause") {
-      if (queue.dispatcher) queue.dispatcher.pause();
-      await client.sendMessage(message.channelId, "⏸️ Paused");
-
-    } else if (command === "resume") {
-      if (queue.dispatcher) queue.dispatcher.resume();
-      await client.sendMessage(message.channelId, "▶️ Resumed");
-
     } else if (command === "queue") {
       if (!queue.songs.length) return client.sendMessage(message.channelId, "🎶 Queue is empty");
       const list = queue.songs.map((s, i) => `${i + 1}. ${s}`).join("\n");
@@ -68,12 +64,14 @@ client.on("messageCreate", async (evt) => {
     } else if (command === "stop") {
       queue.songs = [];
       queue.playing = false;
-      if (queue.dispatcher) queue.dispatcher.stop();
+      try {
+        await client.stopAudio(message.authorVoiceChannel.id);
+      } catch {}
       await client.sendMessage(message.channelId, "🛑 Stopped + cleared queue");
 
     } else if (command === "help") {
       await client.sendMessage(message.channelId,
-        "Commands:\n!play <link or name>\n!skip\n!pause\n!resume\n!queue\n!stop\n!help"
+        "Commands:\n!play <link or name>\n!skip\n!queue\n!stop\n!help"
       );
     }
 
@@ -82,7 +80,8 @@ client.on("messageCreate", async (evt) => {
   }
 });
 
-async function playNext(channel, queue) {
+// Fonction pour jouer la prochaine chanson
+async function playNext(voiceChannel, queue) {
   if (!queue.songs.length) {
     queue.playing = false;
     return;
@@ -92,21 +91,25 @@ async function playNext(channel, queue) {
   const url = queue.songs.shift();
 
   try {
-    const stream = ytdl(url, { filter: "audioonly", quality: "highestaudio" });
-    const connection = await channel.join();
-    
-    queue.dispatcher = connection.play(stream);
+    // Rejoindre le canal vocal
+    const connection = await client.joinVoiceChannel(voiceChannel.id);
 
-    queue.dispatcher.on("finish", () => {
-      if (queue.skipNext) {
-        queue.skipNext = false;
-      }
-      playNext(channel, queue);
+    // Récupérer le stream audio
+    const stream = ytdl(url, { filter: "audioonly", quality: "highestaudio" });
+
+    // Jouer le stream
+    await connection.playAudio(stream);
+
+    // Quand la chanson se termine
+    connection.on("finish", () => {
+      if (queue.skipNext) queue.skipNext = false;
+      playNext(voiceChannel, queue);
     });
 
-    queue.dispatcher.on("error", (err) => {
-      console.error("Dispatcher error:", err);
-      playNext(channel, queue);
+    // En cas d'erreur
+    connection.on("error", (err) => {
+      console.error("Voice connection error:", err);
+      queue.playing = false;
     });
 
   } catch (err) {
@@ -115,4 +118,5 @@ async function playNext(channel, queue) {
   }
 }
 
+// Login du bot
 client.login().catch(err => console.error("Login error:", err));
