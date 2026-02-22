@@ -1,12 +1,10 @@
 require("dotenv").config();
 
-const { Client } = require("@stoat/chat");
+const Stoat = require("stoat.js");
 const ytdl = require("ytdl-core");
 const ytSearch = require("yt-search");
 
-const client = new Client({
-    token: process.env.TOKEN
-});
+const client = new Stoat.Client(process.env.TOKEN);
 
 const PREFIX = "!";
 const queues = new Map();
