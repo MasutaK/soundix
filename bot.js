@@ -3,18 +3,16 @@ import { Client } from "@stoat/javascript-client-sdk";
 import ytdl from "ytdl-core";
 import ytSearch from "yt-search";
 
-// Initialisation du client Stoat
+// ⚡ Initialisation du bot
 const client = new Client({ token: process.env.TOKEN });
-
 const PREFIX = "!";
 const queues = new Map(); // Queue par serveur
 
-// Quand le bot est prêt
 client.on("ready", () => {
   console.log(`Bot connecté en tant que ${client.user.username}!`);
 });
 
-// Gestion des messages
+// ⚡ Commandes
 client.on("messageCreate", async (evt) => {
   const message = evt.message;
   if (!message.content.startsWith(PREFIX)) return;
@@ -31,57 +29,63 @@ client.on("messageCreate", async (evt) => {
   try {
     if (command === "play") {
       if (!message.authorVoiceChannel) {
-        return client.sendMessage(message.channelId, "❌ Join a voice channel first!");
+        return client.sendMessage(message.channelId, "❌ Rejoins un canal vocal d'abord !");
       }
       if (!args.length) {
-        return client.sendMessage(message.channelId, "❌ Provide song name or link");
+        return client.sendMessage(message.channelId, "❌ Fournis un nom de chanson ou un lien !");
       }
 
       let url = args.join(" ");
       if (!ytdl.validateURL(url)) {
         const search = await ytSearch(url);
-        if (!search.videos.length) return client.sendMessage(message.channelId, "❌ No results found");
+        if (!search.videos.length) return client.sendMessage(message.channelId, "❌ Aucun résultat trouvé");
         url = search.videos[0].url;
       }
 
       queue.songs.push(url);
-      await client.sendMessage(message.channelId, `🎶 Added to queue: ${url}`);
+      await client.sendMessage(message.channelId, `🎶 Ajouté à la queue : ${url}`);
 
       if (!queue.playing) {
         await playNext(message.authorVoiceChannel, queue);
       }
 
     } else if (command === "skip") {
-      if (!queue.playing) return client.sendMessage(message.channelId, "❌ Nothing is playing");
+      if (!queue.playing) return client.sendMessage(message.channelId, "❌ Rien n'est en cours de lecture");
       queue.skipNext = true;
-      await client.sendMessage(message.channelId, "⏭️ Skipped song");
+      await client.sendMessage(message.channelId, "⏭️ Chanson suivante");
+
+    } else if (command === "pause") {
+      if (queue.dispatcher) queue.dispatcher.pause();
+      await client.sendMessage(message.channelId, "⏸️ En pause");
+
+    } else if (command === "resume") {
+      if (queue.dispatcher) queue.dispatcher.resume();
+      await client.sendMessage(message.channelId, "▶️ Lecture reprise");
 
     } else if (command === "queue") {
-      if (!queue.songs.length) return client.sendMessage(message.channelId, "🎶 Queue is empty");
+      if (!queue.songs.length) return client.sendMessage(message.channelId, "🎶 La queue est vide");
       const list = queue.songs.map((s, i) => `${i + 1}. ${s}`).join("\n");
       await client.sendMessage(message.channelId, "🎶 Queue:\n" + list);
 
     } else if (command === "stop") {
       queue.songs = [];
       queue.playing = false;
-      try {
-        await client.stopAudio(message.authorVoiceChannel.id);
-      } catch {}
-      await client.sendMessage(message.channelId, "🛑 Stopped + cleared queue");
+      if (queue.dispatcher) queue.dispatcher.stop();
+      await client.sendMessage(message.channelId, "🛑 Lecture arrêtée et queue vidée");
 
     } else if (command === "help") {
       await client.sendMessage(message.channelId,
-        "Commands:\n!play <link or name>\n!skip\n!queue\n!stop\n!help"
+        "Commandes disponibles:\n!play <lien ou nom>\n!skip\n!pause\n!resume\n!queue\n!stop\n!help"
       );
     }
 
   } catch (error) {
-    console.error("Command error:", error);
+    console.error("Erreur commande:", error);
   }
 });
 
-// Fonction pour jouer la prochaine chanson
-async function playNext(voiceChannel, queue) {
+// ⚡ Lecture de la musique
+async function playNext(channel, queue) {
   if (!queue.songs.length) {
     queue.playing = false;
     return;
@@ -91,32 +95,26 @@ async function playNext(voiceChannel, queue) {
   const url = queue.songs.shift();
 
   try {
-    // Rejoindre le canal vocal
-    const connection = await client.joinVoiceChannel(voiceChannel.id);
-
-    // Récupérer le stream audio
     const stream = ytdl(url, { filter: "audioonly", quality: "highestaudio" });
+    const connection = await channel.join();
 
-    // Jouer le stream
-    await connection.playAudio(stream);
+    queue.dispatcher = connection.play(stream);
 
-    // Quand la chanson se termine
-    connection.on("finish", () => {
+    queue.dispatcher.on("finish", () => {
       if (queue.skipNext) queue.skipNext = false;
-      playNext(voiceChannel, queue);
+      playNext(channel, queue);
     });
 
-    // En cas d'erreur
-    connection.on("error", (err) => {
-      console.error("Voice connection error:", err);
-      queue.playing = false;
+    queue.dispatcher.on("error", (err) => {
+      console.error("Erreur dispatcher:", err);
+      playNext(channel, queue);
     });
 
   } catch (err) {
-    console.error("PlayNext error:", err);
+    console.error("Erreur playNext:", err);
     queue.playing = false;
   }
 }
 
-// Login du bot
-client.login().catch(err => console.error("Login error:", err));
+// ⚡ Connexion
+client.login().catch(err => console.error("Erreur login:", err));
