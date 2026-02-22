@@ -1,5 +1,4 @@
 require("dotenv").config();
-
 const Stoat = require("stoat.js");
 const ytdl = require("ytdl-core");
 const ytSearch = require("yt-search");
@@ -13,141 +12,117 @@ client.on("ready", () => {
     console.log("Bot connected ✅");
 });
 
+// Global catch pour éviter crash Node
+process.on("unhandledRejection", (reason, promise) => {
+    console.error("Unhandled Rejection:", reason);
+});
+
 client.on("messageCreate", async (message) => {
-    if (!message.content.startsWith(PREFIX)) return;
+    try {
+        if (!message.content.startsWith(PREFIX)) return;
 
-    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-    const command = args.shift()?.toLowerCase();
+        const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+        const command = args.shift()?.toLowerCase();
+        const guildId = message.guildId;
 
-    const guildId = message.guildId;
-
-    if (!queues.has(guildId)) {
-        queues.set(guildId, {
-            songs: [],
-            playing: false,
-            connection: null,
-            player: null
-        });
-    }
-
-    const queue = queues.get(guildId);
-
-    // 🎵 PLAY
-    if (command === "play") {
-        if (!message.member?.voice?.channelId) {
-            return message.reply("❌ You must be in a voice channel");
+        if (!queues.has(guildId)) {
+            queues.set(guildId, {
+                songs: [],
+                playing: false,
+                connection: null,
+                player: null
+            });
         }
 
-        if (!args[0]) {
-            return message.reply("❌ Please provide a link or song name");
-        }
+        const queue = queues.get(guildId);
 
-        let url = args[0];
-
-        // 🔎 YouTube search if not a link
-        if (!ytdl.validateURL(url)) {
-            const search = await ytSearch(args.join(" "));
-            if (!search.videos.length) {
-                return message.reply("❌ No results found");
+        // ▶️ PLAY
+        if (command === "play") {
+            if (!message.member?.voice?.channelId) {
+                return message.reply("❌ You must be in a voice channel");
             }
-            url = search.videos[0].url;
+            if (!args[0]) return message.reply("❌ Provide a song name or link");
+
+            let url = args.join(" ");
+
+            if (!ytdl.validateURL(url)) {
+                const search = await ytSearch(url);
+                if (!search.videos.length) return message.reply("❌ No results found");
+                url = search.videos[0].url;
+            }
+
+            queue.songs.push(url);
+            message.reply(`✅ Added to the queue: ${url}`);
+
+            if (!queue.playing) await playNext(message, queue);
         }
 
-        queue.songs.push(url);
-        message.reply("✅ Added to the queue");
-
-        if (!queue.playing) {
-            playNext(message, queue);
-        }
-    }
-
-    // ⏭️ SKIP
-    if (command === "skip") {
-        if (!queue.player) return message.reply("❌ Nothing to skip");
-        queue.player.stop();
-        message.reply("⏭️ Skipped to next song");
-    }
-
-    // ⏸️ PAUSE
-    if (command === "pause") {
-        if (!queue.player) return message.reply("❌ Nothing is playing");
-        queue.player.pause();
-        message.reply("⏸️ Paused");
-    }
-
-    // ▶️ RESUME
-    if (command === "resume") {
-        if (!queue.player) return message.reply("❌ Nothing is paused");
-        queue.player.resume();
-        message.reply("▶️ Resumed");
-    }
-
-    // 📜 QUEUE
-    if (command === "queue") {
-        if (!queue.songs.length) {
-            return message.reply("📭 Queue is empty");
+        // ⏭️ SKIP
+        if (command === "skip") {
+            if (!queue.player) return message.reply("❌ Nothing to skip");
+            queue.player.stop();
+            message.reply("⏭️ Skipped to next song");
         }
 
-        const list = queue.songs
-            .map((s, i) => `${i + 1}. ${s}`)
-            .join("\n");
-
-        message.reply("🎶 Current queue:\n" + list);
-    }
-
-    // ❌ REMOVE
-    if (command === "remove") {
-        const index = parseInt(args[0]) - 1;
-
-        if (isNaN(index) || !queue.songs[index]) {
-            return message.reply("❌ Invalid index");
+        // ⏸️ PAUSE
+        if (command === "pause") {
+            if (!queue.player) return message.reply("❌ Nothing is playing");
+            queue.player.pause();
+            message.reply("⏸️ Paused");
         }
 
-        queue.songs.splice(index, 1);
-        message.reply("❌ Removed from queue");
-    }
+        // ▶️ RESUME
+        if (command === "resume") {
+            if (!queue.player) return message.reply("❌ Nothing is paused");
+            queue.player.resume();
+            message.reply("▶️ Resumed");
+        }
 
-    // 🛑 STOP
-    if (command === "stop") {
-        queue.songs = [];
-        queue.player?.stop();
-        queue.playing = false;
+        // 📜 QUEUE
+        if (command === "queue") {
+            if (!queue.songs.length) return message.reply("📭 Queue is empty");
+            const list = queue.songs.map((s, i) => `${i + 1}. ${s}`).join("\n");
+            message.reply("🎶 Current queue:\n" + list);
+        }
 
-        message.reply("🛑 Playback stopped + queue cleared");
-    }
+        // ❌ REMOVE
+        if (command === "remove") {
+            const index = parseInt(args[0]) - 1;
+            if (isNaN(index) || !queue.songs[index]) return message.reply("❌ Invalid index");
+            const removed = queue.songs.splice(index, 1);
+            message.reply(`❌ Removed from queue: ${removed[0]}`);
+        }
 
-    // ❓ HELP
-    if (command === "help") {
-        message.reply(
+        // 🛑 STOP
+        if (command === "stop") {
+            queue.songs = [];
+            queue.player?.stop();
+            queue.playing = false;
+            message.reply("🛑 Playback stopped + queue cleared");
+        }
+
+        // ❓ HELP
+        if (command === "help") {
+            message.reply(
 `🎧 Music Bot Commands:
 
-▶️ !play <name or link>
-Add a song and start playback
-
-⏭️ !skip
-Skip to the next song
-
-⏸️ !pause
-Pause playback
-
-▶️ !resume
-Resume playback
-
-📜 !queue
-Show the queue
-
-❌ !remove <num>
-Remove a song from the queue
-
-🛑 !stop
-Stop playback and clear the queue
-
-💡 Tip: you can just type !play with a song name`
-        );
+▶️ !play <name or link>  → Add a song and start playback
+⏭️ !skip                 → Skip to next song
+⏸️ !pause                → Pause playback
+▶️ !resume                → Resume playback
+📜 !queue                 → Show the queue
+❌ !remove <num>          → Remove a song from the queue
+🛑 !stop                  → Stop playback and clear the queue
+❓ !help                  → Show this help menu`
+            );
+        }
+    } catch (err) {
+        console.error("Error handling message:", err);
+        message.reply("❌ An error occurred while processing your command");
     }
 });
 
-// 🎧 Auto play next song
+// 🎧 Play next song in queue
 async function playNext(message, queue) {
     if (queue.songs.length === 0) {
         queue.playing = false;
@@ -155,14 +130,10 @@ async function playNext(message, queue) {
     }
 
     queue.playing = true;
-
     const url = queue.songs[0];
 
     try {
-        const stream = ytdl(url, {
-            filter: "audioonly",
-            quality: "highestaudio"
-        });
+        const stream = ytdl(url, { filter: "audioonly", quality: "highestaudio" });
 
         const connection = await client.joinVoiceChannel({
             channelId: message.member.voice.channelId,
@@ -170,7 +141,6 @@ async function playNext(message, queue) {
         });
 
         queue.connection = connection;
-
         const player = connection.play(stream);
         queue.player = player;
 
@@ -180,12 +150,11 @@ async function playNext(message, queue) {
         });
 
     } catch (err) {
-        console.error(err);
-        message.reply("❌ Playback error");
-
+        console.error("Error in playNext:", err);
         queue.songs.shift();
         playNext(message, queue);
     }
 }
 
-client.login();
+// Login the bot
+client.login().catch(err => console.error("Failed to login:", err));
