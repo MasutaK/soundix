@@ -7,7 +7,7 @@
     "start": "node soundix-bot.js"
   },
   "dependencies": {
-    "@stoat/chat": "*",
+    "stoat.js": "^7.3.5",
     "dotenv": "^16.0.0",
     "ffmpeg-static": "^5.2.0",
     "yt-search": "^2.10.0",
