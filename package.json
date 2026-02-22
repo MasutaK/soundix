@@ -2,15 +2,16 @@
   "name": "soundix-bot",
   "version": "1.0.0",
   "description": "Stoat music bot",
-  "main": "soundix-bot.js",
+  "type": "module",
+  "main": "bot.js",
   "scripts": {
-    "start": "node soundix-bot.js"
+    "start": "node bot.js"
   },
   "dependencies": {
-    "stoat.js": "^7.3.5",
+    "@stoat/javascript-client-sdk": "github:stoatchat/javascript-client-sdk",
     "dotenv": "^16.0.0",
     "ffmpeg-static": "^5.2.0",
-    "yt-search": "^2.10.0",
-    "ytdl-core": "^4.11.0"
+    "ytdl-core": "^4.11.0",
+    "yt-search": "^2.10.0"
   }
 }
