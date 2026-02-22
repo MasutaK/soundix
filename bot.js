@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { Client } from "@stoat/javascript-client-sdk";
+import { Client } from "@stoat/chat";
 import ytdl from "ytdl-core";
 import ytSearch from "yt-search";
 
