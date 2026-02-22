@@ -8,10 +8,10 @@
     "start": "node bot.js"
   },
   "dependencies": {
-    "@stoat/javascript-client-sdk": "github:stoatchat/javascript-client-sdk",
+    "stoat.js": "^7.3.5",
     "dotenv": "^16.0.0",
-    "ffmpeg-static": "^5.2.0",
     "ytdl-core": "^4.11.0",
-    "yt-search": "^2.10.0"
+    "yt-search": "^2.10.0",
+    "ffmpeg-static": "^5.2.0"
   }
 }
